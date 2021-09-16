@@ -6,11 +6,18 @@ import operator
 import sys
 import argparse
 import math
-
 import numpy as np
+from collections import defaultdict # for img_dict
+
+# TODO 
+PROJECT_NAME = "bdd100k_arg_gamma"
+WINDOW_ANIMATION = False
+GT_PATH = os.path.join(os.getcwd(), 'input', 'ground-truth')
+DR_PATH = os.path.join(os.getcwd(), 'input', 'detection-results')
+IMG_PATH = os.path.normpath(os.path.join(os.getcwd(), '../bdd100k/bdd100k_daytime'))
+output_files_path = "output_" + PROJECT_NAME + "_daytime"# Outpu directory name
 
 MINOVERLAP = 0.5 # default value (defined in the PASCAL VOC2012 challenge)
-
 parser = argparse.ArgumentParser()
 parser.add_argument('-na', '--no-animation', help="no animation is shown.", action="store_true")
 parser.add_argument('-np', '--no-plot', help="no plot is shown.", action="store_true")
@@ -44,10 +51,9 @@ if args.set_class_iou is not None:
 # make sure that the cwd() is the location of the python script (so that every path makes sense)
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-GT_PATH = os.path.join(os.getcwd(), 'input', 'ground-truth')
-DR_PATH = os.path.join(os.getcwd(), 'input', 'detection-results')
+
 # if there are no images then no animation can be shown
-IMG_PATH = os.path.join(os.getcwd(), 'input', 'images-optional')
+
 if os.path.exists(IMG_PATH): 
     for dirpath, dirnames, files in os.walk(IMG_PATH):
         if not files:
@@ -336,7 +342,7 @@ def draw_plot_func(dictionary, n_classes, window_title, plot_title, x_label, out
 TEMP_FILES_PATH = ".temp_files"
 if not os.path.exists(TEMP_FILES_PATH): # if it doesn't exist already
     os.makedirs(TEMP_FILES_PATH)
-output_files_path = "output"
+
 if os.path.exists(output_files_path): # if it exist already
     # reset the output directory
     shutil.rmtree(output_files_path)
@@ -344,7 +350,7 @@ if os.path.exists(output_files_path): # if it exist already
 os.makedirs(output_files_path)
 if draw_plot:
     os.makedirs(os.path.join(output_files_path, "classes"))
-if show_animation:
+if show_animation: # and WINDOW_ANIMATION:
     os.makedirs(os.path.join(output_files_path, "images", "detections_one_by_one"))
 
 """
@@ -499,11 +505,13 @@ for class_index, class_name in enumerate(gt_classes):
 sum_AP = 0.0
 ap_dictionary = {}
 lamr_dictionary = {}
+img_dict = defaultdict(list)
 # open file to store the output
 with open(output_files_path + "/output.txt", 'w') as output_file:
     output_file.write("# AP and precision/recall per class\n")
     count_true_positives = {}
     for class_index, class_name in enumerate(gt_classes):
+        # print("checking " + class_name)
         count_true_positives[class_name] = 0
         """
          Load detection-results of that class
@@ -519,6 +527,7 @@ with open(output_files_path + "/output.txt", 'w') as output_file:
         fp = [0] * nd
         for idx, detection in enumerate(dr_data):
             file_id = detection["file_id"]
+            print("checking " + str(file_id) + "(" + str(idx) +"/" + str(nd) + ")" + class_name)
             if show_animation:
                 # find ground truth image
                 ground_truth_img = glob.glob1(IMG_PATH, file_id + ".*")
@@ -529,18 +538,16 @@ with open(output_files_path + "/output.txt", 'w') as output_file:
                     error("Error. Multiple image with id: " + file_id)
                 else: # found image
                     #print(IMG_PATH + "/" + ground_truth_img[0])
-                    # Load image
-                    img = cv2.imread(IMG_PATH + "/" + ground_truth_img[0])
-                    # load image with draws of multiple detections
+                    # spiderkiller added
                     img_cumulative_path = output_files_path + "/images/" + ground_truth_img[0]
-                    if os.path.isfile(img_cumulative_path):
-                        img_cumulative = cv2.imread(img_cumulative_path)
-                    else:
-                        img_cumulative = img.copy()
-                    # Add bottom border to image
-                    bottom_border = 60
-                    BLACK = [0, 0, 0]
-                    img = cv2.copyMakeBorder(img, 0, bottom_border, 0, 0, cv2.BORDER_CONSTANT, value=BLACK)
+                    
+                    # Load image
+                    if WINDOW_ANIMATION:
+                        img = cv2.imread(IMG_PATH + "/" + ground_truth_img[0])
+                        # Add bottom border to image
+                        bottom_border = 60
+                        BLACK = [0, 0, 0]
+                        img = cv2.copyMakeBorder(img, 0, bottom_border, 0, 0, cv2.BORDER_CONSTANT, value=BLACK)
             # assign detection-results to ground truth object if any
             # open ground-truth with that file_id
             gt_file = TEMP_FILES_PATH + "/" + file_id + "_ground_truth.json"
@@ -601,57 +608,70 @@ with open(output_files_path + "/output.txt", 'w') as output_file:
              Draw image to show animation
             """
             if show_animation:
-                height, widht = img.shape[:2]
                 # colors (OpenCV works with BGR)
                 white = (255,255,255)
                 light_blue = (255,200,100)
                 green = (0,255,0)
                 light_red = (30,30,255)
-                # 1st line
-                margin = 10
-                v_pos = int(height - margin - (bottom_border / 2.0))
-                text = "Image: " + ground_truth_img[0] + " "
-                img, line_width = draw_text_in_image(img, text, (margin, v_pos), white, 0)
-                text = "Class [" + str(class_index) + "/" + str(n_classes) + "]: " + class_name + " "
-                img, line_width = draw_text_in_image(img, text, (margin + line_width, v_pos), light_blue, line_width)
-                if ovmax != -1:
+
+                if WINDOW_ANIMATION:
+                    height, widht = img.shape[:2]
+                    # 1st line
+                    margin = 10
+                    v_pos = int(height - margin - (bottom_border / 2.0))
+                    text = "Image: " + ground_truth_img[0] + " "
+                    img, line_width = draw_text_in_image(img, text, (margin, v_pos), white, 0)
+                    text = "Class [" + str(class_index) + "/" + str(n_classes) + "]: " + class_name + " "
+                    img, line_width = draw_text_in_image(img, text, (margin + line_width, v_pos), light_blue, line_width)
+                    if ovmax != -1:
+                        color = light_red
+                        if status == "INSUFFICIENT OVERLAP":
+                            text = "IoU: {0:.2f}% ".format(ovmax*100) + "< {0:.2f}% ".format(min_overlap*100)
+                        else:
+                            text = "IoU: {0:.2f}% ".format(ovmax*100) + ">= {0:.2f}% ".format(min_overlap*100)
+                            color = green
+                        img, _ = draw_text_in_image(img, text, (margin + line_width, v_pos), color, line_width)
+                    # 2nd line
+                    v_pos += int(bottom_border / 2.0)
+                    rank_pos = str(idx+1) # rank position (idx starts at 0)
+                    text = "Detection #rank: " + rank_pos + " confidence: {0:.2f}% ".format(float(detection["confidence"])*100)
+                    img, line_width = draw_text_in_image(img, text, (margin, v_pos), white, 0)
                     color = light_red
-                    if status == "INSUFFICIENT OVERLAP":
-                        text = "IoU: {0:.2f}% ".format(ovmax*100) + "< {0:.2f}% ".format(min_overlap*100)
-                    else:
-                        text = "IoU: {0:.2f}% ".format(ovmax*100) + ">= {0:.2f}% ".format(min_overlap*100)
+                    if status == "MATCH!":
                         color = green
-                    img, _ = draw_text_in_image(img, text, (margin + line_width, v_pos), color, line_width)
-                # 2nd line
-                v_pos += int(bottom_border / 2.0)
-                rank_pos = str(idx+1) # rank position (idx starts at 0)
-                text = "Detection #rank: " + rank_pos + " confidence: {0:.2f}% ".format(float(detection["confidence"])*100)
-                img, line_width = draw_text_in_image(img, text, (margin, v_pos), white, 0)
-                color = light_red
-                if status == "MATCH!":
-                    color = green
-                text = "Result: " + status + " "
-                img, line_width = draw_text_in_image(img, text, (margin + line_width, v_pos), color, line_width)
+                    text = "Result: " + status + " "
+                    img, line_width = draw_text_in_image(img, text, (margin + line_width, v_pos), color, line_width)
+                
 
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 if ovmax > 0: # if there is intersections between the bounding-boxes
+                    if WINDOW_ANIMATION:
+                        cv2.rectangle(img,(bbgt[0],bbgt[1]),(bbgt[2],bbgt[3]),light_blue,2)
                     bbgt = [ int(round(float(x))) for x in gt_match["bbox"].split() ]
-                    cv2.rectangle(img,(bbgt[0],bbgt[1]),(bbgt[2],bbgt[3]),light_blue,2)
-                    cv2.rectangle(img_cumulative,(bbgt[0],bbgt[1]),(bbgt[2],bbgt[3]),light_blue,2)
-                    cv2.putText(img_cumulative, class_name, (bbgt[0],bbgt[1] - 5), font, 0.6, light_blue, 1, cv2.LINE_AA)
+                    # spiderkiller added
+                    img_dict[img_cumulative_path].append(("rect", (bbgt[0],bbgt[1]), (bbgt[2],bbgt[3]), light_blue, 2))
+                    img_dict[img_cumulative_path].append(("text", class_name, (bbgt[0],bbgt[1] - 5), font, 0.6, light_blue, 1, cv2.LINE_AA))
+                
                 bb = [int(i) for i in bb]
-                cv2.rectangle(img,(bb[0],bb[1]),(bb[2],bb[3]),color,2)
-                cv2.rectangle(img_cumulative,(bb[0],bb[1]),(bb[2],bb[3]),color,2)
-                cv2.putText(img_cumulative, class_name, (bb[0],bb[1] - 5), font, 0.6, color, 1, cv2.LINE_AA)
-                # show image
-                cv2.imshow("Animation", img)
-                cv2.waitKey(20) # show for 20 ms
-                # save image to output
-                output_img_path = output_files_path + "/images/detections_one_by_one/" + class_name + "_detection" + str(idx) + ".jpg"
-                cv2.imwrite(output_img_path, img)
+                if WINDOW_ANIMATION:
+                    cv2.rectangle(img,(bb[0],bb[1]),(bb[2],bb[3]),color,2)
+                
+                color = light_red
+                if status == "MATCH!":
+                    color = green
+                img_dict[img_cumulative_path].append(("rect", (bb[0],bb[1]),(bb[2],bb[3]),color,2))
+                img_dict[img_cumulative_path].append(("text", class_name, (bb[0],bb[1] - 5), font, 0.6, color, 1, cv2.LINE_AA))
+ 
+                if WINDOW_ANIMATION:
+                    # show image
+                    cv2.imshow("Animation", img)
+                    cv2.waitKey(20) # show for 20 ms
+                    # save image to output
+                    output_img_path = output_files_path + "/images/detections_one_by_one/" + class_name + "_detection" + str(idx) + ".jpg"
+                    cv2.imwrite(output_img_path, img)
                 # save the image with all the objects drawn to it
-                cv2.imwrite(img_cumulative_path, img_cumulative)
-
+                # spiderkiller added
+                # cv2.imwrite(img_cumulative_path, img_cumulative)
         #print(tp)
         # compute precision/recall
         cumsum = 0
@@ -732,6 +752,7 @@ with open(output_files_path + "/output.txt", 'w') as output_file:
 """
  Draw false negatives
 """
+print("Drawing false negatives")
 if show_animation:
     pink = (203,192,255)
     for tmp_file in gt_files:
@@ -750,7 +771,16 @@ if show_animation:
             if not obj['used']:
                 bbgt = [ int(round(float(x))) for x in obj["bbox"].split() ]
                 cv2.rectangle(img,(bbgt[0],bbgt[1]),(bbgt[2],bbgt[3]),pink,2)
+        
+        # spiderkiller added
+        for obj in img_dict[img_cumulative_path]:
+            if obj[0] == "rect": # draw rectangle
+                cv2.rectangle(img, obj[1], obj[2], obj[3], obj[4])
+            elif obj[0] == "text": # Draw text
+                cv2.putText(img, obj[1], obj[2], obj[3], obj[4], obj[5], obj[6], obj[7])
+                
         cv2.imwrite(img_cumulative_path, img)
+        print("Writing " + img_cumulative_path)
 
 # remove the temp_files directory
 shutil.rmtree(TEMP_FILES_PATH)
