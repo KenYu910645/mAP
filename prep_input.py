@@ -5,12 +5,16 @@ import os
 import json
 
 # TODO 
-PROJECT_NAME = "bdd100k_arg_gamma"
+PROJECT_NAME = "kitti"# "bdd100k_arg_gamma"
 RESIZE = False # Switch to True if using DeRainDrop image
-result_file = os.path.normpath(os.path.join(os.getcwd(), '../darknet/result_' + PROJECT_NAME + '_daytime.txt'))
-out_result_dir = os.path.normpath(os.path.join(os.getcwd(), "input/detection-results"))
-out_gt_dir = os.path.normpath(os.path.join(os.getcwd(), "input/ground-truth"))
-gt_json = os.path.normpath(os.path.join(os.getcwd(), '../bdd100k/labels/bdd100k_labels_images_val.json'))
+result_file = "/home/spiderkiller/Desktop/darknet/result_kitti.txt"
+out_result_dir = "/home/spiderkiller/Desktop/map/input/detection-results/"
+out_gt_dir = "/home/spiderkiller/Desktop/map/input/ground-truth/"
+
+# BDD100K
+# gt_json = os.path.normpath(os.path.join(os.getcwd(), '../bdd100k/labels/bdd100k_labels_images_val.json'))
+# KITTI
+ano_path = "/home/spiderkiller/Desktop/kitti_dataset/label_2/"
 
 ################################
 ### clear target directories ###
@@ -29,8 +33,9 @@ result_dic = {}
 with open(result_file) as result:
   image_name = None
   for line in result:
-    if line.find('.jpg') != -1:
-      image_name = line.split('.jpg')[0].split('\\')[-1].split('/')[-1] + ".jpg"
+    if line.find('Predicted') != -1:
+      # image_name = line.split('.jpg')[0].split('\\')[-1].split('/')[-1] + ".jpg"
+      image_name = os.path.split(line.split()[0])[1]
       result_dic[image_name] = []
 
     # It's a detection line
@@ -56,56 +61,77 @@ for name in result_dic:
       f.write(string)
 print("Wrote total " + str(count) + " txt file to " + out_result_dir)
 
-###############################################
-### Generate groundtrue-result for cartucho ###
-###############################################
 
-raw_json = json.load(open(gt_json, "r"))
+###############################################
+### Generate groundtrue-result for cartucho ### (KITTI)
+###############################################
 LABEL_MAP = {
-    "car": 0,
-    "bus": 1,
-    "person": 2,
-#    "bike": 3,
-    "truck": 4,
-    # "motor": 5,
-    # "train": 6,
-    # "rider": 7,
-    "traffic sign": 8,
-    "traffic light": 9,
+  'Car' : 0,
+  'Pedestrian' : 1,
+  'Cyclist' : 2
 }
 
-label = {}
-for image_label in raw_json:
-  det_list = []
-  for det in image_label["labels"]:
-    if det["category"] in LABEL_MAP:
-      det_list.append((det["category"],
-                       round(det["box2d"]['x1']),
-                       round(det["box2d"]['y1']),
-                       round(det["box2d"]['x2']),
-                       round(det["box2d"]['y2'])))
-  label[image_label["name"]] = det_list
+for file in os.listdir(ano_path):
+  with open(ano_path + file, 'r') as f_input:
+    s = ""
+    lines = f_input.readlines()
+    for l in lines:
+      det = l.split()
+      if det[0] in LABEL_MAP:
+        s += det[0] + " " + det[4] + " " + det[5] + " " + det[6] + " " + det[7] + '\n'
+    with open(out_gt_dir + file, 'w') as f_output:
+      f_output.write(s)
 
-for name in result_dic:
-  with open(os.path.join(out_gt_dir, name.split('.')[0] + '.txt'), 'w') as f:
-    for det in label[name]:
-      name = None
-      if det[0] == 'car' or det[0] == 'truck' or det[0] == 'bus':
-        name = 'car'
-      elif det[0] == 'traffic light':
-        name = 'traffic_light'
-      elif det[0] == 'person':
-        name = 'person'
-      elif det[0] == 'traffic sign':
-        name = 'traffic_sign'
-      else:
-        continue
-      if not RESIZE:
-        string = name + ' ' + str(det[1]) + ' ' + str(det[2]) + ' ' +\
-                str(det[3]) + ' ' + str(det[4]) + '\n'
-      else:
-        string = name + ' ' + str(det[1]*0.325) + ' ' + str(det[2]*0.57) + ' ' +\
-                str(det[3]*0.325) + ' ' + str(det[4]*0.57) + '\n'
-      f.write(string)
+###############################################
+### Generate groundtrue-result for cartucho ### (BDD100K)
+###############################################
 
-print("Wrote total " + str(count) + " txt file to " + out_gt_dir)
+# raw_json = json.load(open(gt_json, "r"))
+# LABEL_MAP = {
+#     "car": 0,
+#     "bus": 1,
+#     "person": 2,
+# #    "bike": 3,
+#     "truck": 4,
+#     # "motor": 5,
+#     # "train": 6,
+#     # "rider": 7,
+#     "traffic sign": 8,
+#     "traffic light": 9,
+# }
+
+# label = {}
+# for image_label in raw_json:
+#   det_list = []
+#   for det in image_label["labels"]:
+#     if det["category"] in LABEL_MAP:
+#       det_list.append((det["category"],
+#                        round(det["box2d"]['x1']),
+#                        round(det["box2d"]['y1']),
+#                        round(det["box2d"]['x2']),
+#                        round(det["box2d"]['y2'])))
+#   label[image_label["name"]] = det_list
+
+# for name in result_dic:
+#   with open(os.path.join(out_gt_dir, name.split('.')[0] + '.txt'), 'w') as f:
+#     for det in label[name]:
+#       name = None
+#       if det[0] == 'car' or det[0] == 'truck' or det[0] == 'bus':
+#         name = 'car'
+#       elif det[0] == 'traffic light':
+#         name = 'traffic_light'
+#       elif det[0] == 'person':
+#         name = 'person'
+#       elif det[0] == 'traffic sign':
+#         name = 'traffic_sign'
+#       else:
+#         continue
+#       if not RESIZE:
+#         string = name + ' ' + str(det[1]) + ' ' + str(det[2]) + ' ' +\
+#                 str(det[3]) + ' ' + str(det[4]) + '\n'
+#       else:
+#         string = name + ' ' + str(det[1]*0.325) + ' ' + str(det[2]*0.57) + ' ' +\
+#                 str(det[3]*0.325) + ' ' + str(det[4]*0.57) + '\n'
+#       f.write(string)
+
+# print("Wrote total " + str(count) + " txt file to " + out_gt_dir)

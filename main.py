@@ -10,12 +10,13 @@ import numpy as np
 from collections import defaultdict # for img_dict
 
 # TODO 
-PROJECT_NAME = "bdd100k_arg_gamma"
+PROJECT_NAME = "kitti"
 WINDOW_ANIMATION = False
 GT_PATH = os.path.join(os.getcwd(), 'input', 'ground-truth')
 DR_PATH = os.path.join(os.getcwd(), 'input', 'detection-results')
-IMG_PATH = os.path.normpath(os.path.join(os.getcwd(), '../bdd100k/bdd100k_daytime'))
-output_files_path = "output_" + PROJECT_NAME + "_daytime"# Outpu directory name
+IMG_PATH = os.path.normpath(os.path.join(os.getcwd(), '../kitti_dataset/image_2/'))
+output_files_path = "output_" + PROJECT_NAME # Outpu directory name
+VICE_FILE_NAME = '.png'
 
 MINOVERLAP = 0.5 # default value (defined in the PASCAL VOC2012 challenge)
 parser = argparse.ArgumentParser()
@@ -51,9 +52,7 @@ if args.set_class_iou is not None:
 # make sure that the cwd() is the location of the python script (so that every path makes sense)
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-
 # if there are no images then no animation can be shown
-
 if os.path.exists(IMG_PATH): 
     for dirpath, dirnames, files in os.walk(IMG_PATH):
         if not files:
@@ -360,6 +359,7 @@ if show_animation: # and WINDOW_ANIMATION:
 """
 # get a list with the ground-truth files
 ground_truth_files_list = glob.glob(GT_PATH + '/*.txt')
+# print(ground_truth_files_list)
 if len(ground_truth_files_list) == 0:
     error("Error: No ground-truth files found!")
 ground_truth_files_list.sort()
@@ -667,7 +667,7 @@ with open(output_files_path + "/output.txt", 'w') as output_file:
                     cv2.imshow("Animation", img)
                     cv2.waitKey(20) # show for 20 ms
                     # save image to output
-                    output_img_path = output_files_path + "/images/detections_one_by_one/" + class_name + "_detection" + str(idx) + ".jpg"
+                    output_img_path = output_files_path + "/images/detections_one_by_one/" + class_name + "_detection" + str(idx) + VICE_FILE_NAME # ".jpg"
                     cv2.imwrite(output_img_path, img)
                 # save the image with all the objects drawn to it
                 # spiderkiller added
@@ -761,10 +761,10 @@ if show_animation:
         # get name of corresponding image
         start = TEMP_FILES_PATH + '/'
         img_id = tmp_file[tmp_file.find(start)+len(start):tmp_file.rfind('_ground_truth.json')]
-        img_cumulative_path = output_files_path + "/images/" + img_id + ".jpg"
+        img_cumulative_path = output_files_path + "/images/" + img_id + VICE_FILE_NAME # ".jpg"
         img = cv2.imread(img_cumulative_path)
         if img is None:
-            img_path = IMG_PATH + '/' + img_id + ".jpg"
+            img_path = IMG_PATH + '/' + img_id + VICE_FILE_NAME # ".jpg"
             img = cv2.imread(img_path)
         # draw false negatives
         for obj in ground_truth_data:
@@ -778,9 +778,10 @@ if show_animation:
                 cv2.rectangle(img, obj[1], obj[2], obj[3], obj[4])
             elif obj[0] == "text": # Draw text
                 cv2.putText(img, obj[1], obj[2], obj[3], obj[4], obj[5], obj[6], obj[7])
-                
+        
+        print("Write " + img_cumulative_path)
         cv2.imwrite(img_cumulative_path, img)
-        print("Writing " + img_cumulative_path)
+        
 
 # remove the temp_files directory
 shutil.rmtree(TEMP_FILES_PATH)
