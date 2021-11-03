@@ -6,19 +6,24 @@ import operator
 import sys
 import argparse
 import math
+
+from matplotlib.pyplot import cla
 import numpy as np
 from collections import defaultdict # for img_dict
 
 # TODO 
-PROJECT_NAME = "kitti"
+PROJECT_NAME = "bdd100k_test_only_daytime"
 WINDOW_ANIMATION = False
+VERBOSE = False # whether to print for every detection
 GT_PATH = os.path.join(os.getcwd(), 'input', 'ground-truth')
 DR_PATH = os.path.join(os.getcwd(), 'input', 'detection-results')
-IMG_PATH = os.path.normpath(os.path.join(os.getcwd(), '../kitti_dataset/image_2/'))
-output_files_path = "output_" + PROJECT_NAME # Outpu directory name
-VICE_FILE_NAME = '.png'
+IMG_PATH = os.path.normpath(os.path.join(os.getcwd(), './input/images/'))
 
-MINOVERLAP = 0.5 # default value (defined in the PASCAL VOC2012 challenge)
+# 
+VICE_FILE_NAME = '.jpg' # TODO
+output_files_path = "output_" + PROJECT_NAME # Outpu directory name
+
+MINOVERLAP = 0.5 # defaul value (defined in the PASCAL VOC2012 challenge)
 parser = argparse.ArgumentParser()
 parser.add_argument('-na', '--no-animation', help="no animation is shown.", action="store_true")
 parser.add_argument('-np', '--no-plot', help="no plot is shown.", action="store_true")
@@ -345,8 +350,8 @@ if not os.path.exists(TEMP_FILES_PATH): # if it doesn't exist already
 if os.path.exists(output_files_path): # if it exist already
     # reset the output directory
     shutil.rmtree(output_files_path)
-
 os.makedirs(output_files_path)
+
 if draw_plot:
     os.makedirs(os.path.join(output_files_path, "classes"))
 if show_animation: # and WINDOW_ANIMATION:
@@ -527,7 +532,8 @@ with open(output_files_path + "/output.txt", 'w') as output_file:
         fp = [0] * nd
         for idx, detection in enumerate(dr_data):
             file_id = detection["file_id"]
-            print("checking " + str(file_id) + "(" + str(idx) +"/" + str(nd) + ")" + class_name)
+            if VERBOSE:
+                print("checking " + str(file_id) + "(" + str(idx) +"/" + str(nd) + ")" + class_name)
             if show_animation:
                 # find ground truth image
                 ground_truth_img = glob.glob1(IMG_PATH, file_id + ".*")
@@ -698,9 +704,13 @@ with open(output_files_path + "/output.txt", 'w') as output_file:
         """
          Write to output.txt
         """
-        rounded_prec = [ '%.2f' % elem for elem in prec ]
-        rounded_rec = [ '%.2f' % elem for elem in rec ]
-        output_file.write(text + "\n Precision: " + str(rounded_prec) + "\n Recall :" + str(rounded_rec) + "\n\n")
+
+        # Spiderkiller deleted, becuase I don't wanna see too many list in output.txt
+        # rounded_prec = [ '%.2f' % elem for elem in prec ]
+        # rounded_rec = [ '%.2f' % elem for elem in rec ]
+        # output_file.write(text + "\n Precision: " + str(rounded_prec) + "\n Recall :" + str(rounded_rec) + "\n\n")
+        output_file.write(text + "\n")
+
         if not args.quiet:
             print(text)
         ap_dictionary[class_name] = ap
@@ -752,8 +762,8 @@ with open(output_files_path + "/output.txt", 'w') as output_file:
 """
  Draw false negatives
 """
-print("Drawing false negatives")
 if show_animation:
+    print("Drawing false negatives")
     pink = (203,192,255)
     for tmp_file in gt_files:
         ground_truth_data = json.load(open(tmp_file))
@@ -779,9 +789,25 @@ if show_animation:
             elif obj[0] == "text": # Draw text
                 cv2.putText(img, obj[1], obj[2], obj[3], obj[4], obj[5], obj[6], obj[7])
         
-        print("Write " + img_cumulative_path)
+        if VERBOSE:
+            print("Write " + img_cumulative_path)
         cv2.imwrite(img_cumulative_path, img)
-        
+
+# Calculate false negative, Spiderkiller added
+fn_dict = defaultdict(int)
+print("Calculating false negative")
+for tmp_file in gt_files:
+    ground_truth_data = json.load(open(tmp_file))
+    for obj in ground_truth_data:
+        if not obj['used']:
+            fn_dict[obj['class_name']] += 1
+# print(fn_dict)
+
+# Write false negative to output file, Spiderkiller added
+with open(output_files_path + "/output.txt", 'a') as output_file:
+    output_file.write("\n# Number of false negative per class\n")
+    for class_name in sorted(fn_dict):
+        output_file.write(class_name + ": " + str(fn_dict[class_name]) + '\n')
 
 # remove the temp_files directory
 shutil.rmtree(TEMP_FILES_PATH)
@@ -832,13 +858,6 @@ if draw_plot:
         '',
         )
 
-"""
- Write number of ground-truth objects per class to results.txt
-"""
-with open(output_files_path + "/output.txt", 'a') as output_file:
-    output_file.write("\n# Number of ground-truth objects per class\n")
-    for class_name in sorted(gt_counter_per_class):
-        output_file.write(class_name + ": " + str(gt_counter_per_class[class_name]) + "\n")
 
 """
  Finish counting true positives
@@ -848,6 +867,16 @@ for class_name in dr_classes:
     if class_name not in gt_classes:
         count_true_positives[class_name] = 0
 #print(count_true_positives)
+
+"""
+ Write number of ground-truth objects per class to results.txt
+"""
+with open(output_files_path + "/output.txt", 'a') as output_file:
+    output_file.write("\n# Number of ground-truth objects per class\n")
+    for class_name in sorted(gt_counter_per_class):
+        s = class_name + ": " + str(gt_counter_per_class[class_name])
+        s += " (Recall: {a}%)\n".format(a=str(round(100*count_true_positives[class_name]/gt_counter_per_class[class_name],2)))
+        output_file.write(s)
 
 """
  Plot the total number of occurences of each class in the "detection-results" folder
@@ -886,7 +915,8 @@ with open(output_files_path + "/output.txt", 'a') as output_file:
         n_det = det_counter_per_class[class_name]
         text = class_name + ": " + str(n_det)
         text += " (tp:" + str(count_true_positives[class_name]) + ""
-        text += ", fp:" + str(n_det - count_true_positives[class_name]) + ")\n"
+        text += ", fp:" + str(n_det - count_true_positives[class_name])
+        text += ", precision:" + str(round(100*count_true_positives[class_name]/n_det,2)) + "%)\n" 
         output_file.write(text)
 
 """

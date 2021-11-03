@@ -1,12 +1,15 @@
 # This code convert result.txt to input/detection-results/
 # result.txt is yolov4 model detection output file
 
-input_file_path = "/Users/lucky/Desktop/mAP/input/bdd100k_bilateral_result.txt"
-output_dir_path = "/Users/lucky/Desktop/mAP/input/detection-results/"
+# TODO
+# Input 
+src_path = "../darknet/bdd100k_result.txt"
+# Output
+out_path = "./input/detection-results/"
 
 import pprint
 result_dic = {}
-with open(input_file_path) as result:
+with open(src_path) as result:
   image_name = None
   for line in result:
     # It's a loading line
@@ -42,7 +45,7 @@ count = 0
 for name in result_dic:
   print("Writing " + name.split('.')[0] + '.txt ....')
   count += 1
-  with open(output_dir_path + name.split('.')[0] + '.txt', 'w') as f:
+  with open(out_path + name.split('.')[0] + '.txt', 'w') as f:
     for det in result_dic[name]:
       string = str(det[0]) + ' ' + str(det[1]) + ' ' + str(det[2]) + ' ' +\
                str(det[3]) + ' ' + str(det[2] + det[4]) + ' ' + str(det[3] + det[5]) + '\n'
